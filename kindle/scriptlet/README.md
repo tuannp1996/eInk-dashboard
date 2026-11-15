@@ -53,13 +53,22 @@ partitions are never touched.
 5. Open the Library, run **ViaiZ Dashboard - Test one frame**. If the frame
    draws, run **ViaiZ Dashboard** to start the 15-minute loop.
 
-### Without USB (kTerm)
+### Without USB — over Wi-Fi (kTerm)
 
-If USB is unreliable, install kTerm (`;kpm install kterm`) and, with the repo
-files reachable (e.g. served by your dashboard host), `curl` the three
-`documents/*.sh` scriptlets into `/mnt/us/documents/`, the loop into
-`/mnt/us/viaiz-dash/viaiz-dash.sh`, and create `dash.conf` there. Then run the
-Library entries as above.
+If USB is unreliable, install everything over Wi-Fi straight from GitHub:
+
+1. In the homescreen search bar: `;kpm install kterm`.
+2. Open kTerm and run (one line):
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/tuannp1996/eInk-dashboard/main/kindle/scriptlet/wifi-install.sh | sh
+   ```
+
+   (If `curl` is missing: `wget -qO- <same url> | sh`.) It downloads the loop,
+   the three scriptlets and `dash.conf.example` into place.
+3. Edit `/mnt/us/viaiz-dash/dash.conf` (`vi` in kTerm) — set `SERVER_URL` and
+   `DEVICE_TOKEN`.
+4. Run the Library entries as above.
 
 ## Settings (`dash.conf`)
 
