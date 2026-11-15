@@ -1,0 +1,202 @@
+{{define "dashboard"}}<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>{{.Brand}} · {{.Page.Title}}</title>
+{{if .Fluid}}<meta name="viewport" content="width=device-width, initial-scale=1">{{else}}<meta name="viewport" content="width=1072">{{end}}
+{{if gt .Refresh 0}}<meta http-equiv="refresh" content="{{.Refresh}}">{{end}}
+<link rel="stylesheet" href="/static/eink.css">
+</head>
+<body class="{{if .Fluid}}fluid{{else}}fixed{{end}}{{if .Render}} render{{end}}">
+<div class="screen">
+
+<div class="hdr">
+  <table class="row"><tr>
+    <td class="hdr-l">
+      <div class="brand">{{.Brand}}</div>
+      <div class="date">{{tf "Monday, 02 January 2006" .Now}}</div>
+    </td>
+    <td class="hdr-r">
+      <div class="clock">{{tf "15:04" .Now}}</div>
+      <div class="tz">{{.TZLabel}}</div>
+    </td>
+  </tr></table>
+</div>
+
+{{if or (.Has "claude") (.Has "codex")}}
+<table class="row quotas"><tr>
+  {{if .Has "claude"}}<td class="qcell">{{template "quota" (dict "Name" "Claude Code" "Icon" "claude" "S" .D.Claude "V" .)}}</td>{{end}}
+  {{if and (.Has "claude") (.Has "codex")}}<td class="gap"></td>{{end}}
+  {{if .Has "codex"}}<td class="qcell">{{template "quota" (dict "Name" "Codex" "Icon" "codex" "S" .D.Codex "V" .)}}</td>{{end}}
+</tr></table>
+{{end}}
+
+{{if .Has "weather"}}{{template "weather" .}}{{end}}
+{{if .Has "gold"}}{{template "gold" .}}{{end}}
+{{if .Has "trends"}}{{template "trends" .}}{{end}}
+
+<div class="ftr">
+  <table class="row"><tr>
+    <td>{{icon "sync" 22}} Last sync <b>{{tf "15:04" .D.LastSync}}</b> ({{ago .D.LastSync}})</td>
+    <td class="c">Sources <b>{{.D.Health.SourcesOK}}/{{.D.Health.SourcesTotal}}</b> OK</td>
+    <td class="r">{{if or .D.Health.Stale .D.Health.Failing}}{{icon "warn" 22}} {{if .D.Health.Stale}}Stale: {{join .D.Health.Stale ", "}}{{end}}{{if and .D.Health.Stale .D.Health.Failing}} · {{end}}{{if .D.Health.Failing}}No data: {{join .D.Health.Failing ", "}}{{end}}{{else}}All data fresh{{end}}</td>
+  </tr></table>
+</div>
+
+
+
+</div>
+{{if not .Render}}
+<div class="nav"><span class="hint">Stock browser: tap Refresh to update.</span><br>
+  {{range .Pages}}<a href="/dashboard?page={{.Name}}{{if $.Token}}&amp;token={{$.Token}}{{end}}">{{.Title}}</a> {{end}}
+  · <a href="/dashboard/image?page={{.Page.Name}}{{if .Token}}&amp;token={{.Token}}{{end}}">Image mode</a>
+  · <a href="/dashboard?page={{.Page.Name}}{{if .Token}}&amp;token={{.Token}}{{end}}">Refresh</a>
+</div>
+{{end}}
+</body>
+</html>{{end}}
+
+{{define "badge"}}{{with status .}}<span class="badge">{{.}}</span>{{end}}{{end}}
+
+{{define "quota"}}
+<div class="card quota">
+  <div class="card-h">
+    <span class="title">{{icon .Icon 30}} {{.Name}}</span>
+    {{template "badge" .S.Meta}}
+  </div>
+  {{with .S.Data}}
+    {{template "meter" (dict "Label" (windowLabel .FiveHour "5-hour") "Q" .FiveHour)}}
+    {{template "meter" (dict "Label" (windowLabel .Weekly "Weekly") "Q" .Weekly)}}
+    <div class="meta">Reported {{ago .ObservedAt}} · {{.Origin}}{{if .Host}} @ {{.Host}}{{end}}</div>
+  {{else}}
+    <div class="empty">
+      <b>Usage not available</b><br>
+      {{if .S.Meta.LastError}}{{.S.Meta.LastError}}{{else}}No report received from the local usage agent.{{end}}
+    </div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "meter"}}
+<div class="meter">
+  {{if .Q}}
+    {{if .Q.ResetPassed}}
+      <table class="mrow"><tr><td class="mlabel">{{.Label}}</td><td class="mval"><span class="unk">?</span></td></tr></table>
+      <div class="bar unknown"><div class="used" style="width:0%"></div></div>
+      <div class="msub">{{resetText .Q}}</div>
+    {{else}}
+      <table class="mrow"><tr>
+        <td class="mlabel">{{.Label}}</td>
+        <td class="mval"><span class="big">{{pctnum (remaining .Q)}}</span><span class="pc">%</span> <span class="lbl">left</span></td>
+      </tr></table>
+      <div class="bar"><div class="used" style="width:{{barw .Q.UsedPercent}}%"></div></div>
+      <div class="msub"><b>{{pct .Q.UsedPercent}} used</b> · {{resetText .Q}}</div>
+    {{end}}
+  {{else}}
+    <table class="mrow"><tr><td class="mlabel">{{.Label}}</td><td class="mval"><span class="na">n/a</span></td></tr></table>
+    <div class="msub">Not reported by this tool</div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "weather"}}
+<div class="card weather">
+  <div class="card-h">
+    <span class="title">{{icon "partly" 30}} Weather · {{with .D.Weather.Data}}{{.Location}}{{else}}Hà Nội{{end}}</span>
+    {{template "badge" .D.Weather.Meta}}
+  </div>
+  {{with .D.Weather.Data}}
+  <table class="row"><tr>
+    <td class="wnow">
+      <table><tr>
+        <td class="wicon">{{icon .Current.Icon 96}}</td>
+        <td>
+          <div class="wtemp">{{temp .Current.Temperature}}<span class="wc">C</span></div>
+          <div class="wcond">{{.Current.Condition}}</div>
+        </td>
+      </tr></table>
+      <div class="wstats">
+        {{icon "drop" 22}} {{printf "%.0f" .Current.Humidity}}% humidity
+        {{with .Current.FeelsLike}} · feels {{temp .}}{{end}}
+        {{with .Current.WindKmh}} · {{icon "wind" 22}} {{num0 .}} km/h{{end}}
+      </div>
+    </td>
+    <td class="wdays">
+      <table class="days"><tr>
+      {{range .Daily}}
+        <td class="day">
+          <div class="dname">{{wday .Date}}</div>
+          {{icon .Icon 46}}
+          <div class="dmax">{{temp .MaxC}}</div>
+          <div class="dmin">{{temp .MinC}}</div>
+          <div class="dpop">{{if .PrecipProb}}{{icon "drop" 16}}{{num0 .PrecipProb}}%{{else}}&nbsp;{{end}}</div>
+        </td>
+      {{end}}
+      </tr></table>
+    </td>
+  </tr></table>
+  <div class="meta">Observed {{tf "15:04" .Current.Time}} · {{$.D.Weather.Meta.Source}} · fetched {{ago $.D.Weather.Meta.UpdatedAt}}</div>
+  {{else}}
+  <div class="empty"><b>Weather unavailable</b><br>{{.D.Weather.Meta.LastError}}</div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "gold"}}
+<div class="card gold">
+  <div class="card-h">
+    <span class="title">{{icon "gold" 30}} Gold · ×1000 VND/lượng</span>
+    {{template "badge" .D.Gold.Meta}}
+  </div>
+  {{with .D.Gold.Data}}
+  <table class="gt">
+    <tr class="gh"><td>Type</td><td class="r">Buy</td><td class="r">Sell</td></tr>
+    {{range .Items}}
+    <tr>
+      <td class="gname">{{.Label}}</td>
+      <td class="r"><span class="gp">{{kvnd .Buy}}</span>{{with chg .ChangeBuy}}<span class="gchg">{{.}}</span>{{end}}</td>
+      <td class="r"><span class="gp">{{kvnd .Sell}}</span>{{with chg .ChangeSell}}<span class="gchg">{{.}}</span>{{end}}</td>
+    </tr>
+    {{end}}
+  </table>
+  <div class="meta">Source {{$.D.Gold.Meta.Source}}{{with $.D.Gold.Meta.SourceTime}} · updated {{tf "15:04 02/01" .}}{{end}} · fetched {{ago $.D.Gold.Meta.UpdatedAt}} · change {{with index .Items 0}}{{if .ChangeBasis}}{{.ChangeBasis}}{{else}}n/a{{end}}{{end}}</div>
+  {{else}}
+  <div class="empty"><b>Gold prices unavailable</b><br>{{.D.Gold.Meta.LastError}}</div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "trends"}}
+<div class="card trends">
+  <div class="card-h">
+    <span class="title">{{icon "trend" 30}} Trending in Vietnam</span>
+    {{template "badge" .D.Trends.Meta}}
+  </div>
+  {{with .D.Trends.Data}}
+  <table class="tt">
+    {{range .Items}}
+    <tr>
+      <td class="trank">{{.Rank}}</td>
+      <td class="tmain">
+        <div class="ttitle">{{.Title}}{{if .NewsSource}}<span class="tsrc">{{.NewsSource}}</span>{{end}}</div>
+      </td>
+      <td class="ttraffic">{{if .ApproxTraffic}}{{.ApproxTraffic}}<div class="tunit">searches</div>{{else}}—{{end}}</td>
+    </tr>
+    {{end}}
+  </table>
+  <div class="meta">{{$.D.Trends.Meta.Source}} · approx. traffic as published by Google · fetched {{ago $.D.Trends.Meta.UpdatedAt}}</div>
+  {{else}}
+  <div class="empty"><b>Trends unavailable</b><br>{{.D.Trends.Meta.LastError}}</div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "image"}}<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>{{.Brand}} · image</title>
+<meta name="viewport" content="width=1072">
+{{if gt .Refresh 0}}<meta http-equiv="refresh" content="{{.Refresh}}">{{end}}
+<style>body{margin:0;background:#fff;text-align:center;font-family:sans-serif}img{width:100%;max-width:1072px;display:block;margin:0 auto}a{display:block;font-size:40px;padding:24px;color:#000}</style>
+</head><body>
+<a href="/dashboard/image?page={{.Page.Name}}&amp;t={{.Now.Unix}}{{if .Token}}&amp;token={{.Token}}{{end}}"><img src="/api/eink/frame.png?page={{.Page.Name}}&amp;t={{.Now.Unix}}{{if .Token}}&amp;token={{.Token}}{{end}}" alt="dashboard"></a>
+<a href="/dashboard/image?page={{.Page.Name}}&amp;t={{.Now.Unix}}{{if .Token}}&amp;token={{.Token}}{{end}}">Tap to refresh</a>
+</body></html>{{end}}

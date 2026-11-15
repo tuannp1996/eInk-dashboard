@@ -1,0 +1,35 @@
+# ViaiZ dashboard client config (copy to dash.conf and edit).
+# This file lives on the Kindle at /mnt/us/extensions/viaiz-dash/dash.conf
+
+# Base URL of your server (https strongly recommended).
+SERVER_URL="https://dash.example.com"
+
+# Device token (one of DEVICE_TOKENS on the server).
+DEVICE_TOKEN="change-me-to-a-long-random-token"
+
+# Dashboard page to show (see pages: in config.yaml).
+PAGE="main"
+
+# Seconds between refreshes. Default 15 minutes.
+INTERVAL=900
+
+# Do a full flashing refresh (removes ghosting) every N updates; 1 = always.
+FULL_REFRESH_EVERY=4
+
+# Wi-Fi: seconds to wait for a connection after enabling wireless.
+WIFI_TIMEOUT=60
+
+# Turn Wi-Fi off between updates to save power (yes/no).
+# Reconnecting takes a few seconds each cycle.
+WIFI_OFF_BETWEEN=no
+
+# Sleep mode between refreshes:
+#   awake   - keep the device awake (screensaver disabled); simplest, most reliable,
+#             highest power use. Keep the Kindle on a charger.
+#   suspend - EXPERIMENTAL: program an RTC wake alarm and suspend to RAM.
+#             Not verified on every PW3 firmware; may fail to wake. Test first.
+SLEEP_MODE=awake
+
+# Stop the Kindle UI (lab126_gui) while the dashboard runs so it cannot draw
+# over the image. Restored on stop. (yes/no)
+STOP_FRAMEWORK=no

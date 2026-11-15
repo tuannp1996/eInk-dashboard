@@ -1,0 +1,38 @@
+services:
+  dashboard:
+    build: .
+    image: viaiz-eink-dashboard:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Redis is optional; remove this line (and the redis service) for a
+      # single-device setup — the file cache in ./data is then used.
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      HOME: /tmp          # root filesystem is read-only; Chromium writes its profile to /tmp
+    ports:
+      # Bind to localhost; put Caddy/Nginx with TLS in front (see README).
+      - "127.0.0.1:${HOST_PORT:-8080}:8080"
+    volumes:
+      - ./data:/app/data
+      - ./config/config.yaml:/app/config/config.yaml:ro
+    shm_size: "256mb"   # Chromium needs more than Docker's default 64 MB
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - redis
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "300", "1", "--appendonly", "no"]
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:

@@ -1,0 +1,80 @@
+# ViaiZ e-ink dashboard configuration.
+# Secrets (DEVICE_TOKENS, INGEST_TOKENS, REDIS_URL, GOLD_API_URL with keys)
+# come from environment variables — see .env.example.
+
+listen: ":8080"
+timezone: "Asia/Bangkok"   # display timezone (UTC+7, same offset as Hanoi)
+brand: "ViaiZ"
+log_level: "info"
+cache_file: "data/cache.json"   # used when REDIS_URL is empty; survives restarts
+
+weather:
+  enabled: true
+  url: "https://api.open-meteo.com/v1/forecast"
+  location: "Hà Nội"
+  latitude: 21.0285
+  longitude: 105.8542
+  days: 4
+  interval: 30m       # Open-Meteo results are cached for 30 minutes
+  timeout: 15s
+  retries: 3
+  stale_after: 2h
+
+gold:
+  enabled: true
+  provider: "vangtoday"   # vangtoday | generic
+  url: "https://www.vang.today/api/prices"
+  interval: 15m
+  timeout: 15s
+  retries: 3
+  stale_after: 6h
+  # Codes as returned by the provider; labels are what the dashboard shows.
+  items:
+    - { code: "SJL1L10",   label: "SJC miếng 9999" }
+    - { code: "SJ9999",    label: "SJC nhẫn 9999" }
+    - { code: "BTSJC",     label: "Bảo Tín · SJC" }
+    - { code: "BT9999NTT", label: "Bảo Tín · nhẫn 9999" }
+  # Example for provider: generic (any JSON API):
+  # generic:
+  #   items_path: "data.prices"
+  #   code_field: "type"
+  #   buy_field: "buy"
+  #   sell_field: "sell"
+  #   multiplier: 1000      # if the API returns thousand VND
+  #   time_field: "data.updated_at"
+
+trends:
+  enabled: true
+  url: "https://trends.google.com/trending/rss"
+  geo: "VN"
+  limit: 5
+  interval: 30m
+  timeout: 15s
+  retries: 3
+  stale_after: 4h
+
+usage:
+  # Usage snapshots are pushed by the local agent only while Claude Code /
+  # Codex are in use; after this long without a report they are marked stale.
+  stale_after: 6h
+
+# Pages are rendered independently: /api/eink/frame.png?page=<name>
+pages:
+  - name: main
+    title: Overview
+    widgets: [claude, codex, weather, gold, trends]
+  - name: ai
+    title: AI quotas
+    widgets: [claude, codex, weather]
+
+render:
+  width: 1072
+  height: 1448
+  gray_levels: 16      # PW3 panel shows 16 gray levels
+  dither: false        # Floyd–Steinberg; keep off for crisp text
+  cache_ttl: 60s       # frame cache (header clock has minute resolution)
+  timeout: 30s
+  chrome_path: ""      # empty = auto-detect; CHROME_PATH env overrides
+
+kindle:
+  html_refresh_seconds: 900   # <meta http-equiv=refresh> on stock browser pages; 0 = off

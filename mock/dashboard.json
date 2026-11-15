@@ -1,0 +1,47 @@
+{
+  "claude": {
+    "origin": "claude-statusline",
+    "observed_minutes_ago": 7,
+    "five_hour": { "used_percent": 37, "resets_in_minutes": 142, "window_minutes": 300 },
+    "weekly": { "used_percent": 58, "resets_in_minutes": 3790, "window_minutes": 10080 }
+  },
+  "codex": {
+    "origin": "codex-rollout",
+    "observed_minutes_ago": 41,
+    "five_hour": { "used_percent": 12, "resets_in_minutes": 231, "window_minutes": 300 },
+    "weekly": { "used_percent": 81, "resets_in_minutes": 1505, "window_minutes": 10080 }
+  },
+  "weather": {
+    "location": "Hà Nội",
+    "current": {
+      "temperature_c": 23.6, "feels_like_c": 26.1, "humidity_pct": 85, "wind_kmh": 12.2,
+      "weather_code": 1, "condition": "Mainly clear", "icon": "partly"
+    },
+    "daily": [
+      { "weather_code": 3, "condition": "Overcast", "icon": "cloud", "max_c": 29.0, "min_c": 19.5, "precip_prob_pct": 8 },
+      { "weather_code": 51, "condition": "Drizzle", "icon": "drizzle", "max_c": 30.8, "min_c": 22.8, "precip_prob_pct": 20 },
+      { "weather_code": 51, "condition": "Drizzle", "icon": "drizzle", "max_c": 30.9, "min_c": 24.9, "precip_prob_pct": 13 },
+      { "weather_code": 81, "condition": "Rain showers", "icon": "rain", "max_c": 28.2, "min_c": 21.2, "precip_prob_pct": 95 }
+    ]
+  },
+  "gold": {
+    "unit": "VND/lượng",
+    "items": [
+      { "code": "SJL1L10", "label": "SJC miếng 9999", "buy": 134500000, "sell": 137500000, "change_buy": 500000, "change_sell": 500000, "change_basis": "reported by source" },
+      { "code": "SJ9999", "label": "SJC nhẫn 9999", "buy": 133300000, "sell": 137300000, "change_buy": -200000, "change_sell": 0, "change_basis": "reported by source" },
+      { "code": "BTSJC", "label": "Bảo Tín · SJC", "buy": 133800000, "sell": 137500000, "change_buy": 0, "change_sell": 0, "change_basis": "reported by source" },
+      { "code": "BT9999NTT", "label": "Bảo Tín · nhẫn 9999", "buy": 133800000, "sell": 137800000, "change_buy": 300000, "change_sell": 300000, "change_basis": "reported by source" }
+    ]
+  },
+  "trends": {
+    "geo": "VN",
+    "items": [
+      { "rank": 1, "title": "latvia đấu với armenia", "approx_traffic": "200+", "news_source": "Tạp chí Bóng đá" },
+      { "rank": 2, "title": "giá vàng hôm nay", "approx_traffic": "20000+", "news_source": "VnExpress" },
+      { "rank": 3, "title": "thời tiết hà nội", "approx_traffic": "5000+", "news_source": "Tuổi Trẻ" },
+      { "rank": 4, "title": "lịch thi đấu sea games", "approx_traffic": "2000+", "news_source": "Thanh Niên" },
+      { "rank": 5, "title": "kết quả xổ số miền bắc", "approx_traffic": "1000+", "news_source": "Dân trí" }
+    ]
+  },
+  "stale_sections": []
+}
