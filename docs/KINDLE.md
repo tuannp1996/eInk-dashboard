@@ -27,6 +27,15 @@ This project **does not jailbreak, flash or modify** your Kindle. Mode A needs n
 
 ## Mode B: jailbroken Kindle with FBInk
 
+The same refresh loop runs two ways, depending on what your jailbreak provides:
+
+- **B1 — KUAL extension** (this section). For jailbreaks with **KUAL + MRPI**.
+- **B2 — Scriptlet, no KUAL.** For modern **Sanctuary / WinterBreak** jailbreaks
+  that use **KPM + SH_Integration** and drop KUAL. The dashboard installs as
+  `.sh` files in the Library instead of a KUAL menu. See
+  [../kindle/scriptlet/README.md](../kindle/scriptlet/README.md). `fbink` there
+  comes from the jailbreak's Universal Hotfix, so KUAL and MRPI are not needed.
+
 ### Prerequisites (you install these yourself)
 
 - A jailbroken PW3 with **KUAL** installed.
