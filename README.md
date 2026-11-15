@@ -38,7 +38,7 @@ It shows:
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Backend | Go 1.24, `net/http`, `log/slog` (JSON logs) | single static binary |
+| Backend | Go 1.26, `net/http`, `log/slog` (JSON logs) | single static binary |
 | Frontend | server-side `html/template` + plain CSS | Not React: the stock Kindle browser is an old WebKit. The page uses no JS, flexbox, grid or CSS variables. |
 | Cache | in-memory + JSON file, or Redis | Redis is optional (`REDIS_URL`) |
 | Rendering | headless Chromium driven over the DevTools protocol ([chromedp](https://github.com/chromedp/chromedp)) | Same engine Playwright drives, without a Node runtime. The output is quantized to 16 gray levels, encoded as an 8-bit grayscale PNG, and cached for 60 s. |
@@ -138,17 +138,26 @@ Tested target: Ubuntu 22.04 or 24.04 with 1 vCPU and 1 GB RAM. Chromium uses abo
 
    Edit `config/config.yaml` if you want different gold items, pages or intervals.
 
-3. **Start it**:
+3. **Start it**. Compose connects to the existing Redis service named `redis`
+   on the external Docker network `apps-network`. It does not create another
+   Redis container. Verify the shared service is available first:
+
+   ```bash
+   docker exec redis redis-cli ping
+   ```
+
+   Then start the dashboard:
 
    ```bash
    docker compose up -d --build
    ```
 
    ```bash
-   curl -s localhost:8080/api/eink/health
+   curl -s localhost:8089/api/eink/health
    ```
 
-   To run without Redis, delete the `redis` service and the `depends_on` / `REDIS_URL` lines in `docker-compose.yml`. The JSON file cache in `./data` survives restarts.
+   To use file cache, set `REDIS_URL=` in `.env`. The JSON file cache in `./data`
+   survives restarts. The external `apps-network` must still exist for Compose.
 
 4. **Add TLS with a reverse proxy.** The Kindle sends a token, so use HTTPS. Example with Caddy:
 
@@ -160,7 +169,7 @@ Tested target: Ubuntu 22.04 or 24.04 with 1 vCPU and 1 GB RAM. Chromium uses abo
 
    ```
    dash.example.com {
-       reverse_proxy 127.0.0.1:8080
+       reverse_proxy 127.0.0.1:8089
    }
    ```
 
@@ -183,6 +192,46 @@ Tested target: Ubuntu 22.04 or 24.04 with 1 vCPU and 1 GB RAM. Chromium uses abo
    ```
 
    Logs are JSON. Query strings are never logged, because they can carry device tokens.
+
+### viaiz.com/elink-dashboard
+
+The production overlay attaches the dashboard to the existing Cloudflare tunnel's
+`localterm-website_default` Docker network and sets `BASE_PATH=/elink-dashboard`.
+The base Compose file also joins `apps-network` to use the existing shared Redis
+at `redis:6379`, with dashboard cache keys under `viaiz:`. It preserves device and
+ingest token authentication from `.env`.
+
+The overlay also starts a Codex usage-agent. It mounts only
+`${CODEX_SESSIONS_DIR:-/home/futu/.codex/sessions}` read-only, runs with the
+session files' uid/gid (defaults 1000:1000), and pushes usage every minute over
+a private Docker network. It uses the first configured ingest token and never
+mounts Codex credentials. See [usage agent deployment](docs/USAGE-AGENT.md#production-compose).
+Gold and trends are temporarily disabled in `config/config.yaml`; the current
+pages show Claude, Codex and weather.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build --wait
+```
+
+In the existing tunnel's ingress configuration, place this rule before the
+catch-all `viaiz.com` rule, then validate and restart that tunnel:
+
+```yaml
+- hostname: viaiz.com
+  path: ^/elink-dashboard(?:/.*)?$
+  service: http://elink-dashboard:8080
+```
+
+The tunnel must forward the path unchanged. Open
+`https://viaiz.com/elink-dashboard?token=<DEVICE_TOKEN>` for the responsive
+preview, or `/elink-dashboard/dashboard/image?token=<DEVICE_TOKEN>` on Kindle.
+Health is public at `https://viaiz.com/elink-dashboard/healthz`; dashboard data
+and images still require a device token. Usage agents must post to
+`https://viaiz.com/elink-dashboard/api/ingest/usage` with an ingest bearer token.
+
+Use the same two Compose files for subsequent updates. For another proxy or
+hostname, `BASE_PATH` may be empty or an absolute URL path without a trailing slash;
+`BASE_URL`, when set, is the full internal URL including that prefix for Chromium.
 
 ---
 
@@ -216,7 +265,7 @@ Tested target: Ubuntu 22.04 or 24.04 with 1 vCPU and 1 GB RAM. Chromium uses abo
 
 Rules the code enforces, all covered by tests:
 
-- **Nothing is fabricated.** Missing values render as "—", "n/a", "NO DATA" or "Usage not available". They are never 0.
+- **Nothing is fabricated.** Claude and Codex cards automatically hide until a usage report exists, then reappear on the next page or frame render. A single visible usage card fills the row. The footer summarizes displayed widgets; API health still includes unavailable providers. Other missing values render as "—", "n/a" or "NO DATA" and are never assumed to be 0.
 - **Failures keep the last good value** and mark the section `STALE` or `RETRYING`. The footer lists stale and missing sources.
 - **Past reset times hide old numbers.** If a quota window's `resets_at` has passed, the old percentage no longer applies. The widget shows "?" and "reset at … · awaiting new report" instead of a guessed 100%.
 - **Plan usage is not API billing.** The usage widgets show subscription rate-limit windows only.
@@ -248,8 +297,8 @@ Full guide: [docs/KINDLE.md](docs/KINDLE.md).
 | Chromium render to a 1072×1448 8-bit gray PNG (Chrome 157 on Windows) | ✅ verified |
 | Usage ingest end-to-end (agent `statusline` → `push` → dashboard), using a synthetic statusLine payload | ✅ verified |
 | Claude statusLine `rate_limits` field names | per the docs (code.claude.com/docs/en/statusline); not observed with a live subscription |
-| Codex rollout `rate_limits` format | ⚠️ not verified: no rollout files on the dev machine; the parser is lenient |
+| Codex rollout `rate_limits` format | ✅ parser verified against local session events (2026-11-15) |
 | Kindle client loop logic (refresh cadence, failure overlay, cleanup) | ✅ verified in a simulation with stubbed `fbink` and `lipc` |
 | FBInk flags, Wi-Fi `lipc` calls, suspend mode on a real PW3 | ⚠️ not verified on hardware |
 | Stock Kindle browser rendering and TLS compatibility | ⚠️ not verified on hardware |
-| Docker image build | see the note in the final report |
+| Docker image build and Chromium PNG in Compose (2026-11-15) | ✅ verified with Go 1.26 and shared Redis |

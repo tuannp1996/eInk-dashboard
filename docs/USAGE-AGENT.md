@@ -23,7 +23,8 @@ Source: the documented **statusLine** JSON (https://code.claude.com/docs/en/stat
 }
 ```
 
-`resets_at` is in Unix seconds. API-key users get no `rate_limits`, and the dashboard then shows "Usage not available".
+`resets_at` is in Unix seconds. API-key users get no `rate_limits`; the Claude
+card stays hidden until a usage report exists.
 
 **Setup.** Add this to `~/.claude/settings.json`:
 
@@ -54,7 +55,36 @@ Source: Codex CLI session rollout files, `~/.codex/sessions/YYYY/MM/DD/rollout-*
 
 The agent takes the **last** such event from the newest rollout file and timestamps it with the event's own time, not the current time. Windows are mapped by `window_minutes`: 300 is the 5-hour window and 10080 is weekly. If `window_minutes` is missing, primary is treated as 5-hour and secondary as weekly.
 
-⚠️ This file format is **not a documented API** and may change between Codex versions. It could not be checked against real files during development, because the dev machine had none. If no event is found, nothing is reported and the widget shows "Usage not available". No values are guessed. Check the output on your machine with `--dry-run` first.
+This file format may change between Codex versions. The parser was checked
+against real local session events on 2026-11-15, including `primary` (300 minutes)
+and `secondary` (10080 minutes) windows with Unix `resets_at` timestamps. If no
+event is found, nothing is reported and the widget stays hidden until a report exists.
+No values are guessed. Check the output on your machine with `--dry-run` first.
+
+## Production Compose
+
+On the viaiz.com host, the production overlay includes a `usage-agent` service:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --no-build --wait
+docker compose -f docker-compose.yml -f docker-compose.production.yml logs --tail=20 usage-agent
+```
+
+The agent reads the host's Codex sessions via a read-only bind mount and reports
+every minute to `http://dashboard:8080/elink-dashboard` on a private network.
+It takes the first token from `INGEST_TOKENS` in `.env`. The dashboard uses the
+existing shared Redis. No Codex credential files are mounted.
+
+Set `CODEX_SESSIONS_DIR`, `USAGE_AGENT_UID` and `USAGE_AGENT_GID` in `.env` if the
+host's session directory or file owner differs from `/home/futu/.codex/sessions`
+and 1000:1000. The host must be the machine where Codex sessions are written.
+This service enables Codex only; Claude still requires its statusLine snapshot
+integration described above.
+
+If the Codex card is missing, check that the service is running, the mount contains
+recent rollout files, and the logs contain `pushed` for provider `codex`.
+Running `/app/usage-agent` inside the dashboard container alone cannot find the
+host's sessions: that container's home is `/tmp` and it has no session mount.
 
 ## Pushing to the server
 

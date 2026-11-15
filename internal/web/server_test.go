@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -29,8 +30,13 @@ func (fakeFrames) Frame(context.Context, string, bool) (render.Frame, error) {
 func (fakeFrames) Status() (string, time.Time) { return "", time.Time{} }
 
 func newTestServer(t *testing.T) (*httptest.Server, cache.Store) {
+	return newTestServerAt(t, "")
+}
+
+func newTestServerAt(t *testing.T, basePath string) (*httptest.Server, cache.Store) {
 	t.Helper()
 	cfg := config.Default()
+	cfg.BasePath = basePath
 	cfg.DeviceTokens = []string{devTok}
 	cfg.IngestTokens = []string{ingTok}
 	store, _ := cache.NewMemory("")
@@ -43,6 +49,56 @@ func newTestServer(t *testing.T) (*httptest.Server, cache.Store) {
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
 	return ts, store
+}
+
+func TestBasePath(t *testing.T) {
+	const prefix = "/elink-dashboard"
+	ts, _ := newTestServerAt(t, prefix)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	for _, root := range []string{prefix, prefix + "/"} {
+		resp, err := client.Get(ts.URL + root + "?token=" + devTok)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != prefix+"/dashboard/preview?token="+devTok {
+			t.Fatalf("root redirect: %d %q", resp.StatusCode, resp.Header.Get("Location"))
+		}
+	}
+	for _, route := range []string{"/dashboard", "/dashboard/preview", "/dashboard/image", "/api/dashboard", "/api/eink/frame.png"} {
+		if resp, _ := get(t, ts.URL+prefix+route, nil); resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("%s must require a token: %d", route, resp.StatusCode)
+		}
+		resp, body := get(t, ts.URL+prefix+route+"?token="+devTok, nil)
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: %d", route, resp.StatusCode)
+		}
+		if strings.HasPrefix(route, "/dashboard") {
+			if strings.Contains(body, `href="/dashboard`) || strings.Contains(body, `href="/static/`) || strings.Contains(body, `src="/api/`) {
+				t.Errorf("%s contains links outside prefix", route)
+			}
+			if !strings.Contains(body, prefix+"/dashboard") || !strings.Contains(body, "token="+devTok) {
+				t.Errorf("%s missing prefixed links or token", route)
+			}
+		}
+	}
+	for _, route := range []string{"/healthz", "/api/eink/health", "/static/eink.css"} {
+		if resp, _ := get(t, ts.URL+prefix+route, nil); resp.StatusCode != http.StatusOK {
+			t.Errorf("public %s: %d", route, resp.StatusCode)
+		}
+	}
+	if resp, _ := get(t, ts.URL+"/dashboard?token="+devTok, nil); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("unprefixed route: %d", resp.StatusCode)
+	}
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+prefix+"/api/ingest/usage", strings.NewReader(`{}`))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("prefixed ingest must require an ingest token: %d", resp.StatusCode)
+	}
 }
 
 func get(t *testing.T, url string, hdr map[string]string) (*http.Response, string) {
@@ -84,17 +140,84 @@ func TestAuth(t *testing.T) {
 func TestDashboardHTMLNoFabrication(t *testing.T) {
 	ts, _ := newTestServer(t)
 	_, body := get(t, ts.URL+"/dashboard?token="+devTok, nil)
-	for _, want := range []string{"Usage not available", "Weather unavailable", "Gold prices unavailable", "Trends unavailable", `content="width=1072"`, `http-equiv="refresh"`} {
+	for _, want := range []string{"Weather unavailable", "Gold prices unavailable", "Trends unavailable", `content="width=1072"`, `http-equiv="refresh"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q", want)
 		}
 	}
-	if strings.Contains(body, "% left") || strings.Contains(body, "<script") {
-		t.Error("no quota numbers or scripts expected")
+	if strings.Contains(body, "% left") || strings.Contains(body, "<script") || strings.Contains(body, "Usage not available") {
+		t.Error("no quota numbers, empty usage cards or scripts expected")
 	}
 	// links propagate token for stock Kindle
 	if !strings.Contains(body, "token="+devTok) {
 		t.Error("token not propagated on links")
+	}
+}
+
+func TestUsageCardsAppearWhenDataArrives(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		providers []string
+		stale     bool
+	}{
+		{name: "neither"},
+		{name: "claude only", providers: []string{"claude"}},
+		{name: "codex only", providers: []string{"codex"}},
+		{name: "both", providers: []string{"claude", "codex"}},
+		{name: "stale report stays visible", providers: []string{"codex"}, stale: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ts, store := newTestServer(t)
+			_, initial := get(t, ts.URL+"/dashboard?token="+devTok, nil)
+			if strings.Contains(initial, "Claude") || strings.Contains(initial, "Codex") || strings.Contains(initial, "row quotas") {
+				t.Fatal("providers without reports must be absent from cards and footer")
+			}
+			now := time.Now()
+			observed := now
+			if tc.stale {
+				observed = now.Add(-7 * time.Hour)
+			}
+			for _, provider := range tc.providers {
+				u := &model.UsageData{Provider: provider, ObservedAt: observed,
+					FiveHour: &model.QuotaWindow{UsedPercent: model.Ptr(0.0), WindowMinutes: 300, ResetsAt: model.Ptr(now.Add(time.Hour))}}
+				if _, err := dashboard.StoreUsage(context.Background(), store, u, now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, route := range []string{"/dashboard", "/dashboard/preview"} {
+				_, body := get(t, ts.URL+route+"?token="+devTok, nil)
+				if got := strings.Count(body, `class="card quota"`); got != len(tc.providers) {
+					t.Errorf("%s: got %d usage cards, want %d", route, got, len(tc.providers))
+				}
+				if got := strings.Contains(body, `class="row quotas single"`); got != (len(tc.providers) == 1) {
+					t.Errorf("%s: single-card layout: %v", route, got)
+				}
+				if got := strings.Contains(body, `class="gap"`); got != (len(tc.providers) == 2) {
+					t.Errorf("%s: gap between cards: %v", route, got)
+				}
+				healthy := len(tc.providers)
+				if tc.stale {
+					healthy = 0
+					if !strings.Contains(body, "Stale: Codex") {
+						t.Error("stale usage must keep its warning")
+					}
+				}
+				if !strings.Contains(body, fmt.Sprintf("Sources <b>%d/%d</b>", healthy, 3+len(tc.providers))) {
+					t.Errorf("%s: footer must count displayed sources", route)
+				}
+				if len(tc.providers) > 0 && !strings.Contains(body, `<span class="big">100</span>`) {
+					t.Error("a reported 0%% usage must stay visible")
+				}
+			}
+			_, body := get(t, ts.URL+"/api/dashboard?token="+devTok, nil)
+			var d model.Dashboard
+			if err := json.Unmarshal([]byte(body), &d); err != nil {
+				t.Fatal(err)
+			}
+			if d.Health.SourcesTotal != 5 {
+				t.Error("API diagnostics must still include missing providers")
+			}
+		})
 	}
 }
 

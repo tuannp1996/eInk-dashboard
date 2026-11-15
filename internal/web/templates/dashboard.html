@@ -5,7 +5,7 @@
 <title>{{.Brand}} · {{.Page.Title}}</title>
 {{if .Fluid}}<meta name="viewport" content="width=device-width, initial-scale=1">{{else}}<meta name="viewport" content="width=1072">{{end}}
 {{if gt .Refresh 0}}<meta http-equiv="refresh" content="{{.Refresh}}">{{end}}
-<link rel="stylesheet" href="/static/eink.css">
+<link rel="stylesheet" href="{{.BasePath}}/static/eink.css">
 </head>
 <body class="{{if .Fluid}}fluid{{else}}fixed{{end}}{{if .Render}} render{{end}}">
 <div class="screen">
@@ -24,7 +24,7 @@
 </div>
 
 {{if or (.Has "claude") (.Has "codex")}}
-<table class="row quotas"><tr>
+<table class="row quotas{{if not (and (.Has "claude") (.Has "codex"))}} single{{end}}"><tr>
   {{if .Has "claude"}}<td class="qcell">{{template "quota" (dict "Name" "Claude Code" "Icon" "claude" "S" .D.Claude "V" .)}}</td>{{end}}
   {{if and (.Has "claude") (.Has "codex")}}<td class="gap"></td>{{end}}
   {{if .Has "codex"}}<td class="qcell">{{template "quota" (dict "Name" "Codex" "Icon" "codex" "S" .D.Codex "V" .)}}</td>{{end}}
@@ -35,11 +35,12 @@
 {{if .Has "gold"}}{{template "gold" .}}{{end}}
 {{if .Has "trends"}}{{template "trends" .}}{{end}}
 
+{{$health := .VisibleHealth}}
 <div class="ftr">
   <table class="row"><tr>
     <td>{{icon "sync" 22}} Last sync <b>{{tf "15:04" .D.LastSync}}</b> ({{ago .D.LastSync}})</td>
-    <td class="c">Sources <b>{{.D.Health.SourcesOK}}/{{.D.Health.SourcesTotal}}</b> OK</td>
-    <td class="r">{{if or .D.Health.Stale .D.Health.Failing}}{{icon "warn" 22}} {{if .D.Health.Stale}}Stale: {{join .D.Health.Stale ", "}}{{end}}{{if and .D.Health.Stale .D.Health.Failing}} · {{end}}{{if .D.Health.Failing}}No data: {{join .D.Health.Failing ", "}}{{end}}{{else}}All data fresh{{end}}</td>
+    <td class="c">Sources <b>{{$health.SourcesOK}}/{{$health.SourcesTotal}}</b> OK</td>
+    <td class="r">{{if or $health.Stale $health.Failing}}{{icon "warn" 22}} {{if $health.Stale}}Stale: {{join $health.Stale ", "}}{{end}}{{if and $health.Stale $health.Failing}} · {{end}}{{if $health.Failing}}No data: {{join $health.Failing ", "}}{{end}}{{else}}All data fresh{{end}}</td>
   </tr></table>
 </div>
 
@@ -48,9 +49,9 @@
 </div>
 {{if not .Render}}
 <div class="nav"><span class="hint">Stock browser: tap Refresh to update.</span><br>
-  {{range .Pages}}<a href="/dashboard?page={{.Name}}{{if $.Token}}&amp;token={{$.Token}}{{end}}">{{.Title}}</a> {{end}}
-  · <a href="/dashboard/image?page={{.Page.Name}}{{if .Token}}&amp;token={{.Token}}{{end}}">Image mode</a>
-  · <a href="/dashboard?page={{.Page.Name}}{{if .Token}}&amp;token={{.Token}}{{end}}">Refresh</a>
+  {{range .Pages}}<a href="{{$.BasePath}}/dashboard?page={{.Name}}{{if $.Token}}&amp;token={{$.Token}}{{end}}">{{.Title}}</a> {{end}}
+  · <a href="{{.BasePath}}/dashboard/image?page={{.Page.Name}}{{if .Token}}&amp;token={{.Token}}{{end}}">Image mode</a>
+  · <a href="{{.BasePath}}/dashboard?page={{.Page.Name}}{{if .Token}}&amp;token={{.Token}}{{end}}">Refresh</a>
 </div>
 {{end}}
 </body>
@@ -197,6 +198,6 @@
 {{if gt .Refresh 0}}<meta http-equiv="refresh" content="{{.Refresh}}">{{end}}
 <style>body{margin:0;background:#fff;text-align:center;font-family:sans-serif}img{width:100%;max-width:1072px;display:block;margin:0 auto}a{display:block;font-size:40px;padding:24px;color:#000}</style>
 </head><body>
-<a href="/dashboard/image?page={{.Page.Name}}&amp;t={{.Now.Unix}}{{if .Token}}&amp;token={{.Token}}{{end}}"><img src="/api/eink/frame.png?page={{.Page.Name}}&amp;t={{.Now.Unix}}{{if .Token}}&amp;token={{.Token}}{{end}}" alt="dashboard"></a>
-<a href="/dashboard/image?page={{.Page.Name}}&amp;t={{.Now.Unix}}{{if .Token}}&amp;token={{.Token}}{{end}}">Tap to refresh</a>
+<a href="{{.BasePath}}/dashboard/image?page={{.Page.Name}}&amp;t={{.Now.Unix}}{{if .Token}}&amp;token={{.Token}}{{end}}"><img src="{{.BasePath}}/api/eink/frame.png?page={{.Page.Name}}&amp;t={{.Now.Unix}}{{if .Token}}&amp;token={{.Token}}{{end}}" alt="dashboard"></a>
+<a href="{{.BasePath}}/dashboard/image?page={{.Page.Name}}&amp;t={{.Now.Unix}}{{if .Token}}&amp;token={{.Token}}{{end}}">Tap to refresh</a>
 </body></html>{{end}}

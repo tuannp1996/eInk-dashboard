@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- build ----
-FROM golang:1.24-bookworm AS build
+FROM golang:1.26-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -29,5 +29,5 @@ ENV CHROME_PATH=/usr/bin/chromium \
     HOME=/app
 EXPOSE 8080
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
-  CMD curl -fsS http://127.0.0.1:8080/healthz >/dev/null || exit 1
+  CMD curl -fsS "http://127.0.0.1:8080${BASE_PATH:-}/healthz" >/dev/null || exit 1
 ENTRYPOINT ["/app/server"]

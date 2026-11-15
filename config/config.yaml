@@ -21,7 +21,7 @@ weather:
   stale_after: 2h
 
 gold:
-  enabled: true
+  enabled: false
   provider: "vangtoday"   # vangtoday | generic
   url: "https://www.vang.today/api/prices"
   interval: 15m
@@ -44,7 +44,7 @@ gold:
   #   time_field: "data.updated_at"
 
 trends:
-  enabled: true
+  enabled: false
   url: "https://trends.google.com/trending/rss"
   geo: "VN"
   limit: 5
@@ -62,7 +62,7 @@ usage:
 pages:
   - name: main
     title: Overview
-    widgets: [claude, codex, weather, gold, trends]
+    widgets: [claude, codex, weather]
   - name: ai
     title: AI quotas
     widgets: [claude, codex, weather]

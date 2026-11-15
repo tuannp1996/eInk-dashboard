@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -102,7 +103,8 @@ type KindleConfig struct {
 
 type Config struct {
 	Listen       string `yaml:"listen"`
-	BaseURL      string `yaml:"base_url"` // internal URL Chromium uses to reach this server
+	BaseURL      string `yaml:"base_url"`  // internal URL Chromium uses to reach this server
+	BasePath     string `yaml:"base_path"` // URL prefix, empty or e.g. /elink-dashboard
 	Timezone     string `yaml:"timezone"`
 	Brand        string `yaml:"brand"`
 	DeviceTokens []string
@@ -197,6 +199,7 @@ func applyEnv(c *Config) {
 		c.Listen = ":" + p
 	}
 	str("BASE_URL", &c.BaseURL)
+	str("BASE_PATH", &c.BasePath)
 	str("DISPLAY_TZ", &c.Timezone)
 	str("BRAND", &c.Brand)
 	str("REDIS_URL", &c.RedisURL)
@@ -229,6 +232,9 @@ func splitList(s string) []string {
 
 // Validate checks the configuration for obvious mistakes.
 func (c *Config) Validate() error {
+	if c.BasePath != "" && (c.BasePath == "/" || !strings.HasPrefix(c.BasePath, "/") || path.Clean(c.BasePath) != c.BasePath || strings.ContainsAny(c.BasePath, "?#\\%") || strings.Contains(c.BasePath, "//")) {
+		return fmt.Errorf("base_path must be empty or a clean absolute path without a trailing slash")
+	}
 	if _, err := time.LoadLocation(c.Timezone); err != nil {
 		return fmt.Errorf("timezone %q: %w", c.Timezone, err)
 	}

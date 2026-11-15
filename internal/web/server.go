@@ -82,9 +82,18 @@ func (s *Server) Handler() (http.Handler, error) {
 	mux.Handle("GET /dashboard/image", s.device(http.HandlerFunc(s.imagePage)))
 	mux.Handle("POST /api/ingest/usage", s.ingest(http.HandlerFunc(s.ingestUsage)))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/dashboard/preview"+tokenSuffix(r, "?"), http.StatusFound)
+		http.Redirect(w, r, s.Cfg.BasePath+"/dashboard/preview"+tokenSuffix(r, "?"), http.StatusFound)
 	})
-	return s.logging(securityHeaders(mux)), nil
+	var handler http.Handler = mux
+	if prefix := s.Cfg.BasePath; prefix != "" {
+		mounted := http.NewServeMux()
+		mounted.Handle(prefix+"/", http.StripPrefix(prefix, mux))
+		mounted.HandleFunc("GET "+prefix, func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, prefix+"/dashboard/preview"+tokenSuffix(r, "?"), http.StatusFound)
+		})
+		handler = mounted
+	}
+	return s.logging(securityHeaders(handler)), nil
 }
 
 // ---------- auth ----------
@@ -187,7 +196,7 @@ func (s *Server) view(r *http.Request, fluid bool) (View, int, error) {
 	_, off := s.now().In(s.loc).Zone()
 	tz := s.Cfg.Timezone + " (UTC" + offsetString(off) + ")"
 	return View{
-		D: d, Page: p, Pages: s.Cfg.Pages, Brand: s.Cfg.Brand, TZLabel: tz,
+		D: d, Page: p, Pages: s.Cfg.Pages, Brand: s.Cfg.Brand, BasePath: s.Cfg.BasePath, TZLabel: tz,
 		Fluid: fluid, Render: isRender, Token: r.URL.Query().Get("token"), Refresh: refresh, Now: s.now(),
 	}, 0, nil
 }

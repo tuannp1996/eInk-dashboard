@@ -72,7 +72,7 @@ func main() {
 	if !*noRender {
 		base := cfg.BaseURL
 		if base == "" {
-			base = "http://" + loopback(cfg.Listen)
+			base = "http://" + loopback(cfg.Listen) + cfg.BasePath
 		}
 		renderer = render.NewRenderer(cfg.Render, strings.TrimRight(base, "/"), renderToken, log.With("component", "renderer"))
 		frames = renderer

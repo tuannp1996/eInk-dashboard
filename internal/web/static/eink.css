@@ -41,6 +41,7 @@ body.fixed .screen { width: 992px; height: 1408px; padding: 22px 40px 18px; over
 /* ---------- quotas ---------- */
 .quotas { margin-bottom: 10px; }
 .qcell { width: 50%; }
+.quotas.single .qcell { width: 100%; }
 .gap { width: 20px; }
 .quota { margin-bottom: 0; }
 .quota .empty { min-height: 180px; }

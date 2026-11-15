@@ -13,25 +13,64 @@ import (
 
 // View is the data passed to the dashboard template.
 type View struct {
-	D       *model.Dashboard
-	Page    config.PageConfig
-	Pages   []config.PageConfig
-	Brand   string
-	TZLabel string
-	Fluid   bool   // responsive preview vs fixed 1072×1448 e-ink layout
-	Render  bool   // being rendered by headless Chromium for PNG
-	Token   string // device token propagated on links (stock Kindle cannot send headers)
-	Refresh int    // meta refresh seconds, 0 = none
-	Now     time.Time
+	D        *model.Dashboard
+	Page     config.PageConfig
+	Pages    []config.PageConfig
+	Brand    string
+	BasePath string
+	TZLabel  string
+	Fluid    bool   // responsive preview vs fixed 1072×1448 e-ink layout
+	Render   bool   // being rendered by headless Chromium for PNG
+	Token    string // device token propagated on links (stock Kindle cannot send headers)
+	Refresh  int    // meta refresh seconds, 0 = none
+	Now      time.Time
 }
 
+// Has reports whether a configured widget should be displayed. Usage cards
+// appear once a report exists; stale reports stay visible with their warning.
 func (v View) Has(w string) bool {
 	for _, x := range v.Page.Widgets {
 		if x == w {
+			switch w {
+			case "claude":
+				return v.D.Claude.Data != nil
+			case "codex":
+				return v.D.Codex.Data != nil
+			}
 			return true
 		}
 	}
 	return false
+}
+
+// VisibleHealth summarizes the displayed widgets without changing API health.
+func (v View) VisibleHealth() model.DashboardHealthSummary {
+	var health model.DashboardHealthSummary
+	for _, s := range []struct {
+		widget string
+		name   string
+		meta   model.Meta
+	}{
+		{"claude", "Claude", v.D.Claude.Meta},
+		{"codex", "Codex", v.D.Codex.Meta},
+		{"weather", "Weather", v.D.Weather.Meta},
+		{"gold", "Gold", v.D.Gold.Meta},
+		{"trends", "Trends", v.D.Trends.Meta},
+	} {
+		if !v.Has(s.widget) || s.meta.Status == model.StatusDisabled {
+			continue
+		}
+		health.SourcesTotal++
+		switch s.meta.Status {
+		case model.StatusOK:
+			health.SourcesOK++
+		case model.StatusStale:
+			health.Stale = append(health.Stale, s.name)
+		default:
+			health.Failing = append(health.Failing, s.name)
+		}
+	}
+	return health
 }
 
 func funcMap(loc *time.Location, now func() time.Time) template.FuncMap {
